@@ -29,6 +29,7 @@ import org.deeplearning4j.models.embeddings.loader.VectorsConfiguration;
 import org.deeplearning4j.models.embeddings.loader.WordVectorSerializer;
 import org.deeplearning4j.models.embeddings.wordvectors.WordVectors;
 import org.deeplearning4j.models.paragraphvectors.ParagraphVectors;
+import org.deeplearning4j.models.sequencevectors.sequence.SequenceElement;
 import org.deeplearning4j.models.word2vec.VocabWord;
 import org.deeplearning4j.models.word2vec.Word2Vec;
 import org.deeplearning4j.models.word2vec.wordstore.VocabCache;
@@ -53,6 +54,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -772,5 +775,18 @@ public class WordVectorSerializerTest {
         assertEquals(wordA, WordVectorSerializer.decodeB64(wordA));
         assertEquals(wordB, WordVectorSerializer.decodeB64(wordB));
 
+    }
+
+    @Test
+    public void testSerializeDeserializeLookupTable() throws Exception {
+        WeightLookupTable lookupTable = new InMemoryLookupTable();
+        lookupTable.putVector("foo", Nd4j.rand(1,20));
+        lookupTable.putVector("bar", Nd4j.rand(1,20));
+        Path tempFile = Files.createTempFile("lt", ".txt");
+        WordVectorSerializer.writeWordVectors(lookupTable, tempFile.toFile());
+        WeightLookupTable<SequenceElement> readLookupTable = WordVectorSerializer.readLookupTable(new FileInputStream(tempFile.toFile()));
+        assertNotNull(readLookupTable);
+        assertEquals(lookupTable.layerSize(), readLookupTable.layerSize());
+        assertEquals(lookupTable.getVocabCache(), readLookupTable.getVocabCache());
     }
 }

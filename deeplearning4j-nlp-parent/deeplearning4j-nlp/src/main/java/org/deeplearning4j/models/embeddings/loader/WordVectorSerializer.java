@@ -18,6 +18,36 @@
 
 package org.deeplearning4j.models.embeddings.loader;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -66,18 +96,6 @@ import org.nd4j.shade.jackson.databind.SerializationFeature;
 import org.nd4j.storage.CompressedRamStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
 
 // FIXME: remove that
 
@@ -2820,5 +2838,30 @@ public class WordVectorSerializer {
 
         OneTimeLogger.info(log, "Projected memory use for model: [{} {}]", String.format("%.2f", value), sfx);
 
+    }
+
+    public static <T extends SequenceElement> WeightLookupTable<T> readLookupTable(InputStream stream) throws IOException {
+        WeightLookupTable<T> weightLookupTable = new InMemoryLookupTable<>();
+        boolean headerRead = false;
+        for (String line : IOUtils.readLines(stream)) {
+            String[] tokens = line.split(" ");
+            if (!headerRead) {
+                // reading header as "NUM_WORDS VECTOR_SIZE NUM_DOCS"
+                int numWords = Integer.parseInt(tokens[0]);
+                int layerSize = Integer.parseInt(tokens[1]);
+                int totalNumberOfDocs = Integer.parseInt(tokens[2]);
+                log.debug("Reading header - words: {}, layerSize: {}, totalNumberOfDocs: {}", numWords, layerSize, totalNumberOfDocs);
+                headerRead = true;
+            } else {
+                String label = decodeB64(tokens[0]);
+                INDArray vector = Nd4j.create(tokens.length - 1);
+                for (int i = 1; i < tokens.length; i++) {
+                    vector.putScalar(i - 1, Double.parseDouble(tokens[i]));
+                }
+                weightLookupTable.putVector(label, vector);
+            }
+        }
+        stream.close();
+        return weightLookupTable;
     }
 }
